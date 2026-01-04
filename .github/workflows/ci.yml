@@ -146,6 +146,8 @@ jobs:
       - name: Create GitHub Release
         if: needs.changelog.outputs.has_release == 'true'
         run: just github-release "${{ needs.changelog.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - if: needs.changelog.outputs.has_release == 'true'
         run: just build
       - if: needs.changelog.outputs.has_release == 'true'
