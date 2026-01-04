@@ -7,7 +7,7 @@ from pathlib import Path
 
 CHANGELOG_PATH = Path("CHANGELOG.md")
 VERSION_RE = re.compile(r"^## \[(?P<version>[^]]+)\]")
-TAG_RE = re.compile(r"^v?(?P<version>\\d+\\.\\d+\\.\\d+)")
+TAG_RE = re.compile(r"^v?(?P<version>\d+\.\d+\.\d+)$")
 
 
 def _read_changelog() -> list[str]:

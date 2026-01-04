@@ -11,17 +11,15 @@ CHANGELOG_PATH = Path("CHANGELOG.md")
 
 def _read_release_notes(version: str) -> str:
     lines = CHANGELOG_PATH.read_text(encoding="utf-8").splitlines()
-    header = f"## [{version}]"
+    header_prefix = f"## [{version}]"
     collecting = False
     notes: list[str] = []
     for line in lines:
-        if line.startswith("## [") and line != header:
-            if collecting:
-                break
-            continue
-        if line.strip() == header:
+        if line.strip().startswith(header_prefix):
             collecting = True
             continue
+        if collecting and line.startswith("## ["):
+            break
         if collecting:
             notes.append(line)
     content = "\n".join(notes).strip()
