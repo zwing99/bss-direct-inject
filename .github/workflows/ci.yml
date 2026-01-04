@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      has_release: ${{ steps.version.outputs.has_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14-dev"
+          allow-prereleases: true
+      - uses: taiki-e/install-action@just
+      - uses: astral-sh/setup-uv@v3
+      - run: just ci-sync
+      - id: version
+        run: just changelog-ci >> "$GITHUB_OUTPUT"
+  lint:
+    runs-on: ubuntu-latest
+    needs:
+      - changelog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14-dev"
+          allow-prereleases: true
+      - uses: taiki-e/install-action@just
+      - uses: astral-sh/setup-uv@v3
+      - run: just ci-sync
+      - run: just lint
+
+  test:
+    runs-on: ubuntu-latest
+    needs:
+      - changelog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14-dev"
+          allow-prereleases: true
+      - uses: taiki-e/install-action@just
+      - uses: astral-sh/setup-uv@v3
+      - run: just ci-sync
+      - run: just test-ci
+      # TODO: Re-enable PR coverage comment once comment formatting is stable.
+      # - if: github.event_name == 'pull_request'
+      #   run: just coverage-summary > coverage.md
+      # - if: github.event_name == 'pull_request'
+      #   id: find-coverage
+      #   uses: peter-evans/find-comment@v3
+      #   with:
+      #     issue-number: ${{ github.event.pull_request.number }}
+      #     body-includes: "<!-- coverage-report -->"
+      # - if: github.event_name == 'pull_request'
+      #   run: |
+      #     printf '<!-- coverage-report -->\n' > coverage-comment.md
+      #     cat coverage.md >> coverage-comment.md
+      # - if: github.event_name == 'pull_request'
+      #   uses: peter-evans/create-or-update-comment@v4
+      #   with:
+      #     issue-number: ${{ github.event.pull_request.number }}
+      #     comment-id: ${{ steps.find-coverage.outputs.comment-id }}
+      #     body-file: coverage-comment.md
+
+  build-beta:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs:
+      - changelog
+      - lint
+      - test
+    permissions:
+      contents: write
+      id-token: write
+    environment:
+      name: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14-dev"
+          allow-prereleases: true
+      - uses: taiki-e/install-action@just
+      - uses: astral-sh/setup-uv@v3
+      - run: just ci-sync
+      - name: Set alpha version
+        if: needs.changelog.outputs.has_release == 'true'
+        run: just set-alpha-version "${{ needs.changelog.outputs.version }}" "${{ github.run_number }}"
+      - if: needs.changelog.outputs.has_release == 'true'
+        run: uv build
+      - if: needs.changelog.outputs.has_release == 'true'
+        run: just publish
+      - uses: actions/upload-artifact@v4
+        if: needs.changelog.outputs.has_release == 'true'
+        with:
+          name: beta-dist-pr-${{ github.event.pull_request.number }}
+          path: dist/*
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs:
+      - changelog
+      - lint
+      - test
+    permissions:
+      contents: write
+      id-token: write
+    environment:
+      name: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14-dev"
+          allow-prereleases: true
+      - uses: taiki-e/install-action@just
+      - uses: astral-sh/setup-uv@v3
+      - run: just ci-sync
+      - name: Check changelog version
+        if: needs.changelog.outputs.has_release == 'true'
+        run: just changelog-assert-version "${{ needs.changelog.outputs.version }}"
+      - name: Set release version
+        if: needs.changelog.outputs.has_release == 'true'
+        run: just set-release-version "${{ needs.changelog.outputs.version }}"
+      - name: Tag release
+        if: needs.changelog.outputs.has_release == 'true'
+        run: just tag-release "${{ needs.changelog.outputs.version }}"
+      - name: Create GitHub Release
+        if: needs.changelog.outputs.has_release == 'true'
+        run: just github-release "${{ needs.changelog.outputs.version }}"
+      - if: needs.changelog.outputs.has_release == 'true'
+        run: just build
+      - if: needs.changelog.outputs.has_release == 'true'
+        run: just publish
+        # Using PyPI trusted publishing.
