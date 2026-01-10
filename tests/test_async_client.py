@@ -42,7 +42,7 @@ async def test_send_body_ack() -> None:
 
     server, host, port = await _run_server(handler)
     async with server:
-        async with AsyncDirectInjectClient(host, port=port) as client:
+        async with AsyncDirectInjectClient(host, port=port, expect_ack=True) as client:
             assert await client.set_sv(target, data=0) is True
 
 
@@ -59,7 +59,7 @@ async def test_send_body_nak() -> None:
 
     server, host, port = await _run_server(handler)
     async with server:
-        async with AsyncDirectInjectClient(host, port=port) as client:
+        async with AsyncDirectInjectClient(host, port=port, expect_ack=True) as client:
             with pytest.raises(AsyncDirectInjectNakError):
                 await client.send_body(b"\x88\x00")
 

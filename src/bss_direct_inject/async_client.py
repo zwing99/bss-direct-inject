@@ -37,6 +37,7 @@ class AsyncDirectInjectClient:
     host: str
     port: int = 1023
     timeout: float = 1.0
+    expect_ack: bool = False
 
     _reader: asyncio.StreamReader | None = None
     _writer: asyncio.StreamWriter | None = None
@@ -66,7 +67,9 @@ class AsyncDirectInjectClient:
     async def __aexit__(self, exc_type, exc, traceback) -> None:
         await self.close()
 
-    async def send_body(self, body: bytes, expect_ack: bool = True) -> bool:
+    async def send_body(self, body: bytes, expect_ack: bool | None = None) -> bool:
+        if expect_ack is None:
+            expect_ack = self.expect_ack
         writer = self._require_writer()
         frame = DirectInjectCodec.encode(body)
         writer.write(frame)

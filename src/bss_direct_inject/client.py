@@ -37,6 +37,7 @@ class DirectInjectClient:
     host: str
     port: int = 1023
     timeout: float = 1.0
+    expect_ack: bool = False
 
     _socket: socket.socket | None = None
 
@@ -60,7 +61,9 @@ class DirectInjectClient:
     def __exit__(self, exc_type, exc, traceback) -> None:
         self.close()
 
-    def send_body(self, body: bytes, expect_ack: bool = True) -> bool:
+    def send_body(self, body: bytes, expect_ack: bool | None = None) -> bool:
+        if expect_ack is None:
+            expect_ack = self.expect_ack
         sock = self._require_socket()
         frame = DirectInjectCodec.encode(body)
         sock.sendall(frame)
